@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 @author: Dongyu Zhang
 """
@@ -69,7 +69,7 @@ def main():
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
 
-    ## Other parameters
+    # Other parameters
     parser.add_argument("--Kfold",
                         default=None,
                         type=int,
@@ -83,11 +83,13 @@ def main():
     TEMP_DIR = args.temp_dir
 
     if os.path.exists(TEMP_DIR) and os.listdir(TEMP_DIR):
-        raise ValueError("Temp Output directory ({}) already exists and is not empty.".format(TEMP_DIR))
+        raise ValueError(
+            "Temp Output directory ({}) already exists and is not empty.".format(TEMP_DIR))
     os.makedirs(TEMP_DIR, exist_ok=True)
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+        raise ValueError(
+            "Output directory ({}) already exists and is not empty.".format(args.output_dir))
     os.makedirs(args.output_dir, exist_ok=True)
 
     original_df = pd.read_csv(args.original_data, header=None)
@@ -98,7 +100,8 @@ def main():
                                 4: "TEXT",
                                 5: "Label"}, inplace=True)
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True)
+    tokenizer = BertTokenizer.from_pretrained(
+        args.bert_model, do_lower_case=True)
 
     write_log(("New Pre-processing Job Start! \n"
                "original_data: {}, output_dir: {}, temp_dir: {} \n"
@@ -113,7 +116,8 @@ def main():
         write_log("chunk {} tokenize start!".format(i), LOG_PATH)
         df_chunk = original_df.iloc[i * 10000:(i + 1) * 10000].copy()
         df_processed_chunk = preprocessing(df_chunk, tokenizer)
-        df_processed_chunk = df_processed_chunk.astype({'Adm_ID': 'int64', 'Note_ID': 'int64', 'Label': 'int64'})
+        df_processed_chunk = df_processed_chunk.astype(
+            {'Adm_ID': 'int64', 'Note_ID': 'int64', 'Label': 'int64'})
         temp_file_dir = os.path.join(TEMP_DIR, 'Processed_{}.csv'.format(i))
         df_processed_chunk.to_csv(temp_file_dir, index=False)
 
@@ -123,24 +127,54 @@ def main():
         temp_file_dir = os.path.join(TEMP_DIR, 'Processed_{}.csv'.format(i))
         df_chunk = pd.read_csv(temp_file_dir, header=0)
         write_log("chunk {} has {} notes".format(i, len(df_chunk)), LOG_PATH)
-        df = df.append(df_chunk, ignore_index=True)
+
+    all_processed_chunks = []
+    # Calculate num_chunks assuming original_df (loaded earlier) is still available
+    num_chunks = int(np.ceil(len(original_df) / 10000))
+
+    # Loop through the temporary files
+    for i in range(num_chunks):
+        temp_file_dir = os.path.join(TEMP_DIR, 'Processed_{}.csv'.format(i))
+        # Check if the temporary file exists before trying to read
+        if os.path.exists(temp_file_dir):
+            df_chunk = pd.read_csv(temp_file_dir, header=0)
+            write_log("Reading chunk {} with {} notes".format(
+                i, len(df_chunk)), LOG_PATH)
+            # Append the DataFrame chunk to the list
+            all_processed_chunks.append(df_chunk)
+        else:
+            write_log(
+                f"Warning: Temporary file {temp_file_dir} not found. Skipping.", LOG_PATH)
+
+    # Concatenate all chunks *after* the loop
+    if all_processed_chunks:
+        df = pd.concat(all_processed_chunks, ignore_index=True)
+        write_log(f"Concatenated all chunks. Total rows: {len(df)}", LOG_PATH)
+    else:
+        # Handle case where no chunks were processed (e.g., if TEMP_DIR was empty)
+        df = pd.DataFrame({'Adm_ID': [], 'Note_ID': [], 'TEXT': [], 'Input_ID': [],
+                           'Label': [], 'chartdate': [], 'charttime': []})
+        write_log("Warning: No processed chunks found to concatenate.", LOG_PATH)
 
     result = df.Label.value_counts()
     write_log(
         "In the full dataset Positive Patients' Notes: {}, Negative Patients' Notes: {}".format(result[1],
-                                                                                          result[0]),
+                                                                                                result[0]),
         LOG_PATH)
 
     dead_ID = pd.Series(df[df.Label == 1].Adm_ID.unique())
     not_dead_ID = pd.Series(df[df.Label == 0].Adm_ID.unique())
-    write_log("Total Positive Patients' ids: {}, Total Negative Patients' ids: {}".format(len(dead_ID), len(not_dead_ID)), LOG_PATH)
+    write_log("Total Positive Patients' ids: {}, Total Negative Patients' ids: {}".format(
+        len(dead_ID), len(not_dead_ID)), LOG_PATH)
 
-    not_dead_ID_use = not_dead_ID.sample(n=args.id_num_neg, random_state=RANDOM_SEED)
+    not_dead_ID_use = not_dead_ID.sample(
+        n=args.id_num_neg, random_state=RANDOM_SEED)
     dead_ID_use = dead_ID.sample(n=args.id_num_pos, random_state=RANDOM_SEED)
 
     if args.Kfold is None:
         id_val_test_t = dead_ID_use.sample(frac=0.2, random_state=RANDOM_SEED)
-        id_val_test_f = not_dead_ID_use.sample(frac=0.2, random_state=RANDOM_SEED)
+        id_val_test_f = not_dead_ID_use.sample(
+            frac=0.2, random_state=RANDOM_SEED)
 
         id_train_t = dead_ID_use.drop(id_val_test_t.index)
         id_train_f = not_dead_ID_use.drop(id_val_test_f.index)
@@ -176,10 +210,14 @@ def main():
 
         no_result = mortality_not_use.Label.value_counts()
 
-        mortality_train.to_csv(os.path.join(args.output_dir, 'train.csv'), index=False)
-        mortality_val.to_csv(os.path.join(args.output_dir, 'val.csv'), index=False)
-        mortality_test.to_csv(os.path.join(args.output_dir, 'test.csv'), index=False)
-        mortality_not_use.to_csv(os.path.join(args.output_dir, 'not_use.csv'), index=False)
+        mortality_train.to_csv(os.path.join(
+            args.output_dir, 'train.csv'), index=False)
+        mortality_val.to_csv(os.path.join(
+            args.output_dir, 'val.csv'), index=False)
+        mortality_test.to_csv(os.path.join(
+            args.output_dir, 'test.csv'), index=False)
+        mortality_not_use.to_csv(os.path.join(
+            args.output_dir, 'not_use.csv'), index=False)
         df.to_csv(os.path.join(args.output_dir, 'full.csv'), index=False)
 
         if len(no_result) == 2:
@@ -202,24 +240,24 @@ def main():
                            "In the validation dataset Positive Patients' Notes: {}, Negative Patients' Notes: {}\n"
                            "In the test dataset Positive Patients' Notes: {}, Negative Patients' Notes: {}\n"
                            "In the not use dataset Negative Patients' Notes: {}").format(train_result[1],
-                                                                                          train_result[0],
-                                                                                          val_result[1],
-                                                                                          val_result[0],
-                                                                                          test_result[1],
-                                                                                          test_result[0],
-                                                                                          no_result[0]),
+                                                                                         train_result[0],
+                                                                                         val_result[1],
+                                                                                         val_result[0],
+                                                                                         test_result[1],
+                                                                                         test_result[0],
+                                                                                         no_result[0]),
                           LOG_PATH)
             except KeyError:
                 write_log(("In the train dataset Positive Patients' Notes: {}, Negative  Patients' Notes: {}\n"
                            "In the validation dataset Positive Patients' Notes: {}, Negative Patients' Notes: {}\n"
                            "In the test dataset Positive Patients' Notes: {}, Negative Patients' Notes: {}\n"
                            "In the not use dataset Positive Patients' Notes: {}").format(train_result[1],
-                                                                                          train_result[0],
-                                                                                          val_result[1],
-                                                                                          val_result[0],
-                                                                                          test_result[1],
-                                                                                          test_result[0],
-                                                                                          no_result[1]),
+                                                                                         train_result[0],
+                                                                                         val_result[1],
+                                                                                         val_result[0],
+                                                                                         test_result[1],
+                                                                                         test_result[0],
+                                                                                         no_result[1]),
                           LOG_PATH)
 
         write_log("Data saved in the {}".format(args.output_dir), LOG_PATH)
@@ -256,7 +294,7 @@ def main():
             mortality_test = df[df.Adm_ID.isin(test_id_label.id)]
             mortality_not_use = df[
                 (~df.Adm_ID.isin(train_id_label.id)) & (
-                            ~df.Adm_ID.isin(val_id_label.id) & (~df.Adm_ID.isin(test_id_label.id)))]
+                    ~df.Adm_ID.isin(val_id_label.id) & (~df.Adm_ID.isin(test_id_label.id)))]
 
             train_result = mortality_train.Label.value_counts()
 
@@ -267,11 +305,16 @@ def main():
             no_result = mortality_not_use.Label.value_counts()
 
             os.makedirs(os.path.join(args.output_dir, str(num)))
-            mortality_train.to_csv(os.path.join(args.output_dir, str(num), 'train.csv'), index=False)
-            mortality_val.to_csv(os.path.join(args.output_dir, str(num), 'val.csv'), index=False)
-            mortality_test.to_csv(os.path.join(args.output_dir, str(num), 'test.csv'), index=False)
-            mortality_not_use.to_csv(os.path.join(args.output_dir, str(num), 'not_use.csv'), index=False)
-            df.to_csv(os.path.join(args.output_dir, str(num), 'full.csv'), index=False)
+            mortality_train.to_csv(os.path.join(
+                args.output_dir, str(num), 'train.csv'), index=False)
+            mortality_val.to_csv(os.path.join(
+                args.output_dir, str(num), 'val.csv'), index=False)
+            mortality_test.to_csv(os.path.join(
+                args.output_dir, str(num), 'test.csv'), index=False)
+            mortality_not_use.to_csv(os.path.join(
+                args.output_dir, str(num), 'not_use.csv'), index=False)
+            df.to_csv(os.path.join(args.output_dir,
+                      str(num), 'full.csv'), index=False)
 
             if len(no_result) == 2:
                 write_log(("In the {}th split of {} folds\n"
@@ -297,14 +340,14 @@ def main():
                                "In the validation dataset Positive Patients' Notes: {}, Negative Patients' Notes: {}\n"
                                "In the test dataset Positive Patients' Notes: {}, Negative Patients' Notes: {}\n"
                                "In the not use dataset Negative Patients' Notes: {}").format(num,
-                                                                                              args.Kfold,
-                                                                                              train_result[1],
-                                                                                              train_result[0],
-                                                                                              val_result[1],
-                                                                                              val_result[0],
-                                                                                              test_result[1],
-                                                                                              test_result[0],
-                                                                                              no_result[0]),
+                                                                                             args.Kfold,
+                                                                                             train_result[1],
+                                                                                             train_result[0],
+                                                                                             val_result[1],
+                                                                                             val_result[0],
+                                                                                             test_result[1],
+                                                                                             test_result[0],
+                                                                                             no_result[0]),
                               LOG_PATH)
                 except KeyError:
                     write_log(("In the {}th split of {} folds\n"
@@ -322,7 +365,8 @@ def main():
                                                                                              no_result[1]),
                               LOG_PATH)
 
-            write_log("Data saved in the {}".format(os.path.join(args.output_dir, str(num))), LOG_PATH)
+            write_log("Data saved in the {}".format(
+                os.path.join(args.output_dir, str(num))), LOG_PATH)
 
 
 if __name__ == "__main__":
