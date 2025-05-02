@@ -227,7 +227,13 @@ class TLSTM(nn.Module):
         return current_hidden_state, Ct
 
     def map_elapse_time(self, t):
-        T = torch.div(self.c1_const, torch.log(t + self.c2_const))
+        safe_t = torch.max(t, torch.tensor(1e-6).to(t.device))
+        T_1 = torch.div(self.c1_const, torch.mul(self.a, torch.pow(safe_t, self.b)))
+        T_2 = self.k - torch.mul(self.m, safe_t)
+        T_3 = torch.div(self.c1_const, (self.c1_const + torch.pow(torch.div(safe_t, self.d), self.n)))
+        T = torch.mul(self.W_decay_1, T_1) + torch.mul(self.W_decay_2, T_2) + torch.mul(self.W_decay_3, T_3)
+        T = torch.max(T, self.c3_const)
+        T = torch.min(T, self.c1_const)
         T = torch.matmul(T, self.ones_const)
         return T
 

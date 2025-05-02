@@ -24,10 +24,12 @@ def time_batch_generator(max_len, input_ids, labels, masks, note_ids, chunk_ids,
         if i < size:
             if times is not None:
                 yield input_ids[indices[i]][-max_len:, :], labels[indices[i]], masks[indices[i]][-max_len:, :], \
-                      note_ids[indices[i]][-max_len:], chunk_ids[indices[i]][-max_len:], times[indices[i]][-max_len:]
+                    note_ids[indices[i]][-max_len:], chunk_ids[indices[i]
+                                                               ][-max_len:], times[indices[i]][-max_len:]
             else:
                 yield input_ids[indices[i]][-max_len:, :], labels[indices[i]], masks[indices[i]][-max_len:, :], \
-                      note_ids[indices[i]][-max_len:], chunk_ids[indices[i]][-max_len:]
+                    note_ids[indices[i]
+                             ][-max_len:], chunk_ids[indices[i]][-max_len:]
             i += 1
         else:
             i = 0
@@ -53,6 +55,7 @@ def mask_batch_generator(max_len, input_ids, labels, masks):
             indices = np.arange(size)
             np.random.shuffle(indices)
             continue
+
 
 def pad_sequences(sequences, maxlen=None, dtype='int32',
                   padding='pre', truncating='pre', value=0.):
@@ -116,7 +119,7 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
             sample_shape = np.asarray(s).shape[1:]
             break
 
-    is_dtype_str = np.issubdtype(dtype, np.str_) or np.issubdtype(dtype, np.unicode_)
+    is_dtype_str = np.issubdtype(dtype, np.str_)
     if isinstance(value, six.string_types) and dtype != object and not is_dtype_str:
         raise ValueError("`dtype` {} is not compatible with `value`'s type: {}\n"
                          "You should set `dtype=object` for variable length strings."
